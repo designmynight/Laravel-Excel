@@ -3,6 +3,7 @@
 namespace Maatwebsite\Excel;
 
 use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Concerns\WithStorageOptions;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Contracts\Filesystem\Factory;
@@ -97,7 +98,9 @@ class Excel implements Exporter, Importer
 
         $file = $this->export($export, $filePath, $writerType);
 
-        return $this->filesystem->disk($disk)->put($filePath, fopen($file, 'r+'));
+        $options = $export instanceof WithStorageOptions ? $export->storageOptions() : [];
+
+        return $this->filesystem->disk($disk)->put($filePath, fopen($file, 'r+'), $options);
     }
 
     /**
