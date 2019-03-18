@@ -5,6 +5,8 @@ namespace Maatwebsite\Excel;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Files\Filesystem;
 use Maatwebsite\Excel\Files\TemporaryFile;
+use Maatwebsite\Excel\Concerns\WithStorageOptions;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\PendingDispatch;
 use Maatwebsite\Excel\Helpers\FileTypeDetector;
@@ -95,6 +97,9 @@ class Excel implements Exporter, Importer
             return $this->queue($export, $filePath, $diskName, $writerType, $diskOptions);
         }
 
+        $storageOptions = $export instanceof WithStorageOptions ? $export->storageOptions() : [];
+        $diskOptions = array_merge($storageOptions, $diskOptions);
+      
         return $this->filesystem->disk($diskName, $diskOptions)->copy(
             $this->export($export, $filePath, $writerType),
             $filePath
@@ -108,6 +113,9 @@ class Excel implements Exporter, Importer
     {
         $writerType = FileTypeDetector::detectStrict($filePath, $writerType);
 
+        $storageOptions = $export instanceof WithStorageOptions ? $export->storageOptions() : [];
+        $diskOptions = array_merge($storageOptions, $diskOptions);
+      
         return $this->queuedWriter->store(
             $export,
             $filePath,
