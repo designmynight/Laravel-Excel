@@ -2,8 +2,12 @@
 
 namespace Maatwebsite\Excel\Tests;
 
+use Illuminate\Http\Testing\File;
+use Illuminate\Contracts\Queue\Job;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\ExcelServiceProvider;
+use Orchestra\Database\ConsoleServiceProvider;
+use PHPUnit\Framework\Constraint\StringContains;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
 
 class TestCase extends OrchestraTestCase
@@ -15,11 +19,30 @@ class TestCase extends OrchestraTestCase
      * @throws \PhpOffice\PhpSpreadsheet\Reader\Exception
      * @return \PhpOffice\PhpSpreadsheet\Spreadsheet
      */
-    protected function read(string $filePath, string $writerType)
+    public function read(string $filePath, string $writerType)
     {
         $reader = IOFactory::createReader($writerType);
 
         return $reader->load($filePath);
+    }
+
+    /**
+     * @param string      $filePath
+     * @param string|null $filename
+     *
+     * @return File
+     */
+    public function givenUploadedFile(string $filePath, string $filename = null): File
+    {
+        $filename = $filename ?? basename($filePath);
+
+        // Create temporary file.
+        $newFilePath = tempnam(sys_get_temp_dir(), 'import-');
+
+        // Copy the existing file to a temporary file.
+        copy($filePath, $newFilePath);
+
+        return new File($filename, fopen($newFilePath, 'r'));
     }
 
     /**
@@ -50,7 +73,10 @@ class TestCase extends OrchestraTestCase
      */
     protected function getPackageProviders($app)
     {
-        return [ExcelServiceProvider::class];
+        return [
+            ConsoleServiceProvider::class,
+            ExcelServiceProvider::class,
+        ];
     }
 
     /**
@@ -77,5 +103,33 @@ class TestCase extends OrchestraTestCase
         $app['config']->set('view.paths', [
             __DIR__ . '/Data/Stubs/Views',
         ]);
+    }
+
+    /**
+     * @param Job    $job
+     * @param string $property
+     *
+     * @return mixed
+     */
+    protected function inspectJobProperty(Job $job, string $property)
+    {
+        $dict  = (array) unserialize($job->payload()['data']['command']);
+        $class = $job->resolveName();
+
+        return $dict[$property] ?? $dict["\0*\0$property"] ?? $dict["\0$class\0$property"];
+    }
+
+    /**
+     * @param string $needle
+     * @param string $haystack
+     * @param string $message
+     */
+    protected function assertStringContains(string $needle, string $haystack, string $message = '')
+    {
+        if (method_exists($this, 'assertStringContainsString')) {
+            $this->assertStringContainsString($needle, $haystack, $message);
+        } else {
+            static::assertThat($haystack, new StringContains($needle, false), $message);
+        }
     }
 }

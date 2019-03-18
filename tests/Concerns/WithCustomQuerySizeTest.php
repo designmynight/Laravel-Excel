@@ -13,7 +13,7 @@ class WithCustomQuerySizeTest extends TestCase
     /**
      * Setup the test environment.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -42,17 +42,5 @@ class WithCustomQuerySizeTest extends TestCase
         $actual = $this->readAsArray(dirname(__DIR__) . '/Data/Disks/Local/export-from-query-with-count.xlsx', 'Xlsx');
 
         $this->assertCount(Group::count(), $actual);
-    }
-
-    /**
-     * {@inheritdoc}
-     */
-    protected function getPackageProviders($app)
-    {
-        return [
-            \Orchestra\Database\ConsoleServiceProvider::class,
-        ];
-
-        return parent::getPackageAliases($app);
     }
 }
