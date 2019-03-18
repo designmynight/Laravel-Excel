@@ -13,7 +13,6 @@ use Maatwebsite\Excel\Concerns\FromView;
 use Maatwebsite\Excel\Concerns\Exportable;
 use Maatwebsite\Excel\Concerns\Importable;
 use Maatwebsite\Excel\Concerns\WithEvents;
-use Maatwebsite\Excel\Events\BeforeWriting;
 use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Facades\Excel as ExcelFacade;
 use Maatwebsite\Excel\Tests\Data\Stubs\EmptyExport;
@@ -28,7 +27,7 @@ class ExcelTest extends TestCase
      */
     protected $SUT;
 
-    public function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -103,6 +102,18 @@ class ExcelTest extends TestCase
     /**
      * @test
      */
+    public function can_get_raw_export_contents()
+    {
+        $export = new EmptyExport;
+
+        $response = $this->SUT->raw($export, Excel::XLSX);
+
+        $this->assertNotEmpty($response);
+    }
+
+    /**
+     * @test
+     */
     public function can_store_tsv_export_with_default_settings()
     {
         $export = new EmptyExport;
@@ -118,7 +129,7 @@ class ExcelTest extends TestCase
      */
     public function can_store_csv_export_with_custom_settings()
     {
-        $export = new class implements WithEvents, FromCollection {
+        $export = new class implements WithEvents, FromCollection, WithCustomCsvSettings {
             use RegistersEventListeners;
 
             /**
@@ -133,15 +144,17 @@ class ExcelTest extends TestCase
             }
 
             /**
-             * @param BeforeWriting $event
+             * @return array
              */
-            public static function beforeWriting(BeforeWriting $event)
+            public function getCsvSettings(): array
             {
-                $event->writer->setLineEnding(PHP_EOL);
-                $event->writer->setEnclosure('');
-                $event->writer->setDelimiter(';');
-                $event->writer->setIncludeSeparatorLine(true);
-                $event->writer->setExcelCompatibility(false);
+                return [
+                    'line_ending'            => PHP_EOL,
+                    'enclosure'              => '',
+                    'delimiter'              => ';',
+                    'include_separator_line' => true,
+                    'excel_compatibility'    => false,
+                ];
             }
         };
 
@@ -149,18 +162,19 @@ class ExcelTest extends TestCase
 
         $contents = file_get_contents(__DIR__ . '/Data/Disks/Local/filename.csv');
 
-        $this->assertContains('sep=;', $contents);
-        $this->assertContains('A1;B1', $contents);
-        $this->assertContains('A2;B2', $contents);
+        $this->assertStringContains('sep=;', $contents);
+        $this->assertStringContains('A1;B1', $contents);
+        $this->assertStringContains('A2;B2', $contents);
     }
 
     /**
      * @test
-     * @expectedException \Maatwebsite\Excel\Exceptions\ConcernConflictException
-     * @expectedExceptionMessage Cannot use FromQuery, FromArray or FromCollection and FromView on the same sheet
      */
     public function cannot_use_from_collection_and_from_view_on_same_export()
     {
+        $this->expectException(\Maatwebsite\Excel\Exceptions\ConcernConflictException::class);
+        $this->expectExceptionMessage('Cannot use FromQuery, FromArray or FromCollection and FromView on the same sheet');
+
         $export = new class implements FromCollection, FromView {
             use Exportable;
 
@@ -342,9 +356,8 @@ class ExcelTest extends TestCase
 
     /**
      * @test
-     * @expectedException \Maatwebsite\Excel\Exceptions\NoTypeDetectedException
      */
-    public function import_will_throw_error_when_no_reader_type_could_be_detected()
+    public function can_import_a_simple_xlsx_file_from_real_path()
     {
         $import = new class implements ToArray {
             /**
@@ -359,7 +372,50 @@ class ExcelTest extends TestCase
             }
         };
 
+        $this->SUT->import($import, __DIR__ . '/Data/Disks/Local/import.xlsx');
+    }
+
+    /**
+     * @test
+     */
+    public function import_will_throw_error_when_no_reader_type_could_be_detected_when_no_extension()
+    {
+        $this->expectException(\Maatwebsite\Excel\Exceptions\NoTypeDetectedException::class);
+
+        $import = new class implements ToArray {
+            /**
+             * @param array $array
+             */
+            public function array(array $array)
+            {
+                Assert::assertEquals([
+                    ['test', 'test'],
+                    ['test', 'test'],
+                ], $array);
+            }
+        };
+
         $this->SUT->import($import, UploadedFile::fake()->create('import'));
+    }
+
+    /**
+     * @test
+     */
+    public function import_will_throw_error_when_no_reader_type_could_be_detected_with_unknown_extension()
+    {
+        $this->expectException(\Maatwebsite\Excel\Exceptions\NoTypeDetectedException::class);
+
+        $import = new class implements ToArray {
+            /**
+             * @param array $array
+             */
+            public function array(array $array)
+            {
+                //
+            }
+        };
+
+        $this->SUT->import($import, 'unknown-reader-type.zip');
     }
 
     /**
