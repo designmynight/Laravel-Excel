@@ -2,20 +2,21 @@
 
 namespace Maatwebsite\Excel\Tests\Concerns;
 
-use PHPUnit\Framework\Assert;
-use Maatwebsite\Excel\Tests\TestCase;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Concerns\Importable;
 use Maatwebsite\Excel\Concerns\ToArray;
 use Maatwebsite\Excel\Concerns\ToModel;
-use Maatwebsite\Excel\Concerns\Importable;
 use Maatwebsite\Excel\Concerns\WithMappedCells;
 use Maatwebsite\Excel\Tests\Data\Stubs\Database\User;
+use Maatwebsite\Excel\Tests\TestCase;
+use PHPUnit\Framework\Assert;
 
 class WithMappedCellsTest extends TestCase
 {
     /**
      * Setup the test environment.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
@@ -86,6 +87,8 @@ class WithMappedCellsTest extends TestCase
                     'name'  => 'Patrick Brouwers',
                     'email' => 'patrick@maatwebsite.nl',
                 ], $array);
+
+                $array['password'] = Str::random();
 
                 return new User($array);
             }

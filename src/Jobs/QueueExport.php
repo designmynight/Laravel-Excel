@@ -2,64 +2,73 @@
 
 namespace Maatwebsite\Excel\Jobs;
 
-use Maatwebsite\Excel\Writer;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
-use Maatwebsite\Excel\Concerns\WithMultipleSheets;
+use Illuminate\Queue\InteractsWithQueue;
+use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Excel;
 
 class QueueExport implements ShouldQueue
 {
-    use ExtendedQueueable, Dispatchable;
+    use Queueable;
+    use Dispatchable;
+    use ProxyFailures;
+    use InteractsWithQueue;
 
     /**
-     * @var object
+     * @var Exportable
      */
-    private $export;
+    public $export;
 
     /**
      * @var string
      */
-    private $tempFile;
+    public $filePath;
 
     /**
-     * @var string
+     * @var string|null
      */
-    private $writerType;
+    public $disk;
 
     /**
-     * @param object $export
-     * @param string $tempFile
-     * @param string $writerType
+     * @var string|null
      */
-    public function __construct($export, string $tempFile, string $writerType)
+    public $writerType;
+
+    /**
+     * @var array
+     */
+    public $diskOptions;
+
+    /**
+     * @param Exportable  $export
+     * @param string      $filePath
+     * @param string|null $disk
+     * @param string|null $writerType
+     * @param array       $diskOptions
+     */
+    public function __construct($export, string $filePath, ?string $disk = null, ?string $writerType = null, $diskOptions = [])
     {
-        $this->export     = $export;
-        $this->tempFile   = $tempFile;
-        $this->writerType = $writerType;
+        $this->export      = $export;
+        $this->filePath    = $filePath;
+        $this->disk        = $disk;
+        $this->writerType  = $writerType;
+        $this->diskOptions = $diskOptions;
+    }
+
+    public function handle(Excel $excel)
+    {
+        $excel->store($this->export, $this->filePath, $this->disk, $this->writerType, $this->diskOptions, false);
     }
 
     /**
-     * @param Writer $writer
+     * Get the middleware the job should be dispatched through.
      *
-     * @throws \PhpOffice\PhpSpreadsheet\Exception
-     * @throws \PhpOffice\PhpSpreadsheet\Writer\Exception
+     * @return array
      */
-    public function handle(Writer $writer)
+    public function middleware()
     {
-        $writer->open($this->export);
-
-        $sheetExports = [$this->export];
-        if ($this->export instanceof WithMultipleSheets) {
-            $sheetExports = $this->export->sheets();
-        }
-
-        // Pre-create the worksheets
-        foreach ($sheetExports as $sheetIndex => $sheetExport) {
-            $sheet = $writer->addNewSheet($sheetIndex);
-            $sheet->open($sheetExport);
-        }
-
-        // Write to temp file with empty sheets.
-        $writer->write($sheetExport, $this->tempFile, $this->writerType);
+        return (method_exists($this->export, 'middleware')) ? $this->export->middleware() : [];
     }
 }

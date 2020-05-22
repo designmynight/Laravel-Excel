@@ -2,8 +2,8 @@
 
 namespace Maatwebsite\Excel\Tests;
 
-use Maatwebsite\Excel\Tests\Data\Stubs\Database\User;
 use Maatwebsite\Excel\Tests\Data\Stubs\AfterQueueExportJob;
+use Maatwebsite\Excel\Tests\Data\Stubs\Database\User;
 use Maatwebsite\Excel\Tests\Data\Stubs\FromUsersQueryExport;
 use Maatwebsite\Excel\Tests\Data\Stubs\FromUsersQueryExportWithMapping;
 
@@ -12,7 +12,7 @@ class QueuedQueryExportTest extends TestCase
     /**
      * Setup the test environment.
      */
-    protected function setUp()
+    protected function setUp(): void
     {
         parent::setUp();
 
