@@ -2,15 +2,16 @@
 
 namespace Maatwebsite\Excel\Imports;
 
-use Throwable;
-use Illuminate\Support\Collection;
 use Illuminate\Database\Eloquent\Model;
-use Maatwebsite\Excel\Concerns\ToModel;
+use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Concerns\SkipsOnError;
+use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithValidation;
-use Maatwebsite\Excel\Validators\RowValidator;
 use Maatwebsite\Excel\Exceptions\RowSkippedException;
+use Maatwebsite\Excel\Imports\Persistence\CascadePersistManager;
+use Maatwebsite\Excel\Validators\RowValidator;
 use Maatwebsite\Excel\Validators\ValidationException;
+use Throwable;
 
 class ModelManager
 {
@@ -25,11 +26,18 @@ class ModelManager
     private $validator;
 
     /**
-     * @param RowValidator $validator
+     * @var CascadePersistManager
      */
-    public function __construct(RowValidator $validator)
+    private $cascade;
+
+    /**
+     * @param RowValidator          $validator
+     * @param CascadePersistManager $cascade
+     */
+    public function __construct(RowValidator $validator, CascadePersistManager $cascade)
     {
         $this->validator = $validator;
+        $this->cascade   = $cascade;
     }
 
     /**
@@ -115,7 +123,7 @@ class ModelManager
             ->each(function (array $attributes) use ($import) {
                 $this->toModels($import, $attributes)->each(function (Model $model) use ($import) {
                     try {
-                        $model->saveOrFail();
+                        $this->cascade->persist($model);
                     } catch (Throwable $e) {
                         if ($import instanceof SkipsOnError) {
                             $import->onError($e);

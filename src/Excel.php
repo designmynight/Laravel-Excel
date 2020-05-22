@@ -2,14 +2,14 @@
 
 namespace Maatwebsite\Excel;
 
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\PendingDispatch;
 use Illuminate\Support\Collection;
 use Maatwebsite\Excel\Files\Filesystem;
 use Maatwebsite\Excel\Files\TemporaryFile;
 use Maatwebsite\Excel\Concerns\WithStorageOptions;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Foundation\Bus\PendingDispatch;
 use Maatwebsite\Excel\Helpers\FileTypeDetector;
+use Maatwebsite\Excel\Jobs\QueueExport;
 
 class Excel implements Exporter, Importer
 {
@@ -45,11 +45,6 @@ class Excel implements Exporter, Importer
     protected $writer;
 
     /**
-     * @var QueuedWriter
-     */
-    protected $queuedWriter;
-
-    /**
      * @var Filesystem
      */
     protected $filesystem;
@@ -61,49 +56,53 @@ class Excel implements Exporter, Importer
 
     /**
      * @param Writer       $writer
-     * @param QueuedWriter $queuedWriter
      * @param Reader       $reader
      * @param Filesystem   $filesystem
      */
     public function __construct(
         Writer $writer,
-        QueuedWriter $queuedWriter,
         Reader $reader,
         Filesystem $filesystem
     ) {
         $this->writer       = $writer;
         $this->reader       = $reader;
         $this->filesystem   = $filesystem;
-        $this->queuedWriter = $queuedWriter;
     }
 
     /**
      * {@inheritdoc}
      */
-    public function download($export, string $fileName, string $writerType = null)
+    public function download($export, string $fileName, string $writerType = null, array $headers = [])
     {
         return response()->download(
             $this->export($export, $fileName, $writerType)->getLocalPath(),
-            $fileName
+            $fileName,
+            $headers
         )->deleteFileAfterSend(true);
     }
 
     /**
      * {@inheritdoc}
      */
-    public function store($export, string $filePath, string $diskName = null, string $writerType = null, $diskOptions = [])
+    public function store($export, string $filePath, string $diskName = null, string $writerType = null, $diskOptions = [], bool $allowQueue = true)
     {
-        if ($export instanceof ShouldQueue) {
+        if ($allowQueue && $export instanceof ShouldQueue) {
             return $this->queue($export, $filePath, $diskName, $writerType, $diskOptions);
         }
 
+        $temporaryFile = $this->export($export, $filePath, $writerType);
+
         $storageOptions = $export instanceof WithStorageOptions ? $export->storageOptions() : [];
         $diskOptions = array_merge($storageOptions, $diskOptions);
-      
-        return $this->filesystem->disk($diskName, $diskOptions)->copy(
-            $this->export($export, $filePath, $writerType),
+
+        $exported = $this->filesystem->disk($diskName, $diskOptions)->copy(
+            $temporaryFile,
             $filePath
         );
+
+        $temporaryFile->delete();
+
+        return $exported;
     }
 
     /**
@@ -115,14 +114,8 @@ class Excel implements Exporter, Importer
 
         $storageOptions = $export instanceof WithStorageOptions ? $export->storageOptions() : [];
         $diskOptions = array_merge($storageOptions, $diskOptions);
-      
-        return $this->queuedWriter->store(
-            $export,
-            $filePath,
-            $disk,
-            $writerType,
-            $diskOptions
-        );
+
+        return QueueExport::dispatch($export, $filePath, $disk, $writerType, $diskOptions);
     }
 
     /**
@@ -186,8 +179,8 @@ class Excel implements Exporter, Importer
      * @param string|null $fileName
      * @param string      $writerType
      *
-     * @throws \PhpOffice\PhpSpreadsheet\Exception
      * @return TemporaryFile
+     * @throws \PhpOffice\PhpSpreadsheet\Exception
      */
     protected function export($export, string $fileName, string $writerType = null): TemporaryFile
     {
