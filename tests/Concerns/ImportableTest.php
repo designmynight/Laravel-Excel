@@ -2,12 +2,11 @@
 
 namespace Maatwebsite\Excel\Tests\Concerns;
 
-use Maatwebsite\Excel\Concerns\Importable;
-use Maatwebsite\Excel\Concerns\ToArray;
-use Maatwebsite\Excel\Excel;
+use PHPUnit\Framework\Assert;
 use Maatwebsite\Excel\Importer;
 use Maatwebsite\Excel\Tests\TestCase;
-use PHPUnit\Framework\Assert;
+use Maatwebsite\Excel\Concerns\ToArray;
+use Maatwebsite\Excel\Concerns\Importable;
 
 class ImportableTest extends TestCase
 {
@@ -57,32 +56,5 @@ class ImportableTest extends TestCase
         };
 
         $import->import($this->givenUploadedFile(__DIR__ . '/../Data/Disks/Local/import.xlsx'));
-    }
-
-    /**
-     * @test
-     */
-    public function can_import_a_simple_csv_file_with_html_tags_inside()
-    {
-        $import = new class implements ToArray {
-            use Importable;
-
-            /**
-             * @param array $array
-             */
-            public function array(array $array)
-            {
-                Assert::assertEquals([
-                    ['key1', 'A', 'row1'],
-                    ['key2', 'B', '<p>row2</p>'],
-                    ['key3', 'C', 'row3'],
-                    ['key4', 'D', 'row4'],
-                    ['key5', 'E', 'row5'],
-                    ['key6', 'F', '<a href=/url-example">link</a>"'],
-                ], $array);
-            }
-        };
-
-        $import->import('csv-with-html-tags.csv', 'local', Excel::CSV);
     }
 }

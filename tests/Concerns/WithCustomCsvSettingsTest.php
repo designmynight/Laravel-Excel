@@ -2,13 +2,13 @@
 
 namespace Maatwebsite\Excel\Tests\Concerns;
 
-use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\ToArray;
-use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
 use Maatwebsite\Excel\Excel;
-use Maatwebsite\Excel\Tests\TestCase;
 use PHPUnit\Framework\Assert;
+use Illuminate\Support\Collection;
+use Maatwebsite\Excel\Tests\TestCase;
+use Maatwebsite\Excel\Concerns\ToArray;
+use Maatwebsite\Excel\Concerns\FromCollection;
+use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
 
 class WithCustomCsvSettingsTest extends TestCase
 {
@@ -17,7 +17,7 @@ class WithCustomCsvSettingsTest extends TestCase
      */
     protected $SUT;
 
-    protected function setUp(): void
+    public function setUp()
     {
         parent::setUp();
 
@@ -61,9 +61,9 @@ class WithCustomCsvSettingsTest extends TestCase
 
         $contents = file_get_contents(__DIR__ . '/../Data/Disks/Local/custom-csv.csv');
 
-        $this->assertStringContains('sep=;', $contents);
-        $this->assertStringContains('A1;B1', $contents);
-        $this->assertStringContains('A2;B2', $contents);
+        $this->assertContains('sep=;', $contents);
+        $this->assertContains('A1;B1', $contents);
+        $this->assertContains('A2;B2', $contents);
     }
 
     /**

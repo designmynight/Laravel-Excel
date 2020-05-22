@@ -2,9 +2,8 @@
 
 namespace Maatwebsite\Excel\Imports;
 
-use Illuminate\Support\Collection;
-use Illuminate\Support\Str;
 use InvalidArgumentException;
+use Illuminate\Support\Collection;
 
 class HeadingRowFormatter
 {
@@ -74,7 +73,7 @@ class HeadingRowFormatter
      */
     public static function reset()
     {
-        static::default();
+        static::default(null);
     }
 
     /**
@@ -93,8 +92,9 @@ class HeadingRowFormatter
             return $formatter($value);
         }
 
-        if (static::$formatter === self::FORMATTER_SLUG) {
-            return Str::slug($value, '_');
+        switch (static::$formatter) {
+            case self::FORMATTER_SLUG:
+                return str_slug($value, '_');
         }
 
         // No formatter (FORMATTER_NONE)

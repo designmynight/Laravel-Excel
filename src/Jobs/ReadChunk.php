@@ -2,40 +2,19 @@
 
 namespace Maatwebsite\Excel\Jobs;
 
-use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Maatwebsite\Excel\Concerns\WithChunkReading;
-use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
-use Maatwebsite\Excel\Concerns\WithEvents;
-use Maatwebsite\Excel\Events\ImportFailed;
-use Maatwebsite\Excel\Files\TemporaryFile;
-use Maatwebsite\Excel\Filters\ChunkReadFilter;
-use Maatwebsite\Excel\HasEventBus;
-use Maatwebsite\Excel\Imports\HeadingRowExtractor;
 use Maatwebsite\Excel\Sheet;
-use Maatwebsite\Excel\Transactions\TransactionHandler;
+use Illuminate\Bus\Queueable;
+use Illuminate\Support\Facades\DB;
 use PhpOffice\PhpSpreadsheet\Cell\Cell;
+use Illuminate\Contracts\Queue\ShouldQueue;
 use PhpOffice\PhpSpreadsheet\Reader\IReader;
-use Throwable;
+use Maatwebsite\Excel\Filters\ChunkReadFilter;
+use Maatwebsite\Excel\Imports\HeadingRowExtractor;
+use Maatwebsite\Excel\Concerns\WithCustomValueBinder;
 
 class ReadChunk implements ShouldQueue
 {
-    use Queueable, HasEventBus;
-
-    /**
-     * @var int
-     */
-    public $timeout;
-
-    /**
-     * @var int
-     */
-    public $tries;
-
-    /**
-     * @var WithChunkReading
-     */
-    private $import;
+    use Queueable;
 
     /**
      * @var IReader
@@ -43,9 +22,9 @@ class ReadChunk implements ShouldQueue
     private $reader;
 
     /**
-     * @var TemporaryFile
+     * @var string
      */
-    private $temporaryFile;
+    private $file;
 
     /**
      * @var string
@@ -68,34 +47,27 @@ class ReadChunk implements ShouldQueue
     private $chunkSize;
 
     /**
-     * @param  WithChunkReading  $import
-     * @param  IReader  $reader
-     * @param  TemporaryFile  $temporaryFile
-     * @param  string  $sheetName
-     * @param  object  $sheetImport
-     * @param  int  $startRow
-     * @param  int  $chunkSize
+     * @param IReader $reader
+     * @param string  $file
+     * @param string  $sheetName
+     * @param object  $sheetImport
+     * @param int     $startRow
+     * @param int     $chunkSize
      */
-    public function __construct(WithChunkReading $import, IReader $reader, TemporaryFile $temporaryFile, string $sheetName, $sheetImport, int $startRow, int $chunkSize)
+    public function __construct(IReader $reader, string $file, string $sheetName, $sheetImport, int $startRow, int $chunkSize)
     {
-        $this->import        = $import;
-        $this->reader        = $reader;
-        $this->temporaryFile = $temporaryFile;
-        $this->sheetName     = $sheetName;
-        $this->sheetImport   = $sheetImport;
-        $this->startRow      = $startRow;
-        $this->chunkSize     = $chunkSize;
-        $this->timeout       = $import->timeout ?? null;
-        $this->tries         = $import->tries ?? null;
+        $this->reader      = $reader;
+        $this->file        = $file;
+        $this->sheetName   = $sheetName;
+        $this->sheetImport = $sheetImport;
+        $this->startRow    = $startRow;
+        $this->chunkSize   = $chunkSize;
     }
 
     /**
-     * @param  TransactionHandler  $transaction
-     *
-     * @throws \Maatwebsite\Excel\Exceptions\SheetNotFoundException
      * @throws \PhpOffice\PhpSpreadsheet\Reader\Exception
      */
-    public function handle(TransactionHandler $transaction)
+    public function handle()
     {
         if ($this->sheetImport instanceof WithCustomValueBinder) {
             Cell::setValueBinder($this->sheetImport);
@@ -114,22 +86,14 @@ class ReadChunk implements ShouldQueue
         $this->reader->setReadDataOnly(true);
         $this->reader->setReadEmptyCells(false);
 
-        $spreadsheet = $this->reader->load(
-            $this->temporaryFile->sync()->getLocalPath()
-        );
+        $spreadsheet = $this->reader->load($this->file);
 
         $sheet = Sheet::byName(
             $spreadsheet,
             $this->sheetName
         );
 
-        if ($sheet->getHighestRow() < $this->startRow) {
-            $sheet->disconnect();
-
-            return;
-        }
-
-        $transaction(function () use ($sheet) {
+        DB::transaction(function () use ($sheet) {
             $sheet->import(
                 $this->sheetImport,
                 $this->startRow
@@ -137,20 +101,5 @@ class ReadChunk implements ShouldQueue
 
             $sheet->disconnect();
         });
-    }
-
-    /**
-     * @param  Throwable  $e
-     */
-    public function failed(Throwable $e)
-    {
-        if ($this->import instanceof WithEvents) {
-            $this->registerListeners($this->import->registerEvents());
-            $this->raise(new ImportFailed($e));
-
-            if (method_exists($this->import, 'failed')) {
-                $this->import->failed($e);
-            }
-        }
     }
 }

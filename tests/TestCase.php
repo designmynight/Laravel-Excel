@@ -2,13 +2,11 @@
 
 namespace Maatwebsite\Excel\Tests;
 
-use Illuminate\Contracts\Queue\Job;
 use Illuminate\Http\Testing\File;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Maatwebsite\Excel\ExcelServiceProvider;
 use Orchestra\Database\ConsoleServiceProvider;
 use Orchestra\Testbench\TestCase as OrchestraTestCase;
-use PhpOffice\PhpSpreadsheet\IOFactory;
-use PHPUnit\Framework\Constraint\StringContains;
 
 class TestCase extends OrchestraTestCase
 {
@@ -103,33 +101,5 @@ class TestCase extends OrchestraTestCase
         $app['config']->set('view.paths', [
             __DIR__ . '/Data/Stubs/Views',
         ]);
-    }
-
-    /**
-     * @param Job    $job
-     * @param string $property
-     *
-     * @return mixed
-     */
-    protected function inspectJobProperty(Job $job, string $property)
-    {
-        $dict  = (array) unserialize($job->payload()['data']['command']);
-        $class = $job->resolveName();
-
-        return $dict[$property] ?? $dict["\0*\0$property"] ?? $dict["\0$class\0$property"];
-    }
-
-    /**
-     * @param string $needle
-     * @param string $haystack
-     * @param string $message
-     */
-    protected function assertStringContains(string $needle, string $haystack, string $message = '')
-    {
-        if (method_exists($this, 'assertStringContainsString')) {
-            $this->assertStringContainsString($needle, $haystack, $message);
-        } else {
-            static::assertThat($haystack, new StringContains($needle, false), $message);
-        }
     }
 }

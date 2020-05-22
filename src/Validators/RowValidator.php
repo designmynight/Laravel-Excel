@@ -3,11 +3,9 @@
 namespace Maatwebsite\Excel\Validators;
 
 use Illuminate\Contracts\Validation\Factory;
-use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException as IlluminateValidationException;
 use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Maatwebsite\Excel\Concerns\WithValidation;
-use Maatwebsite\Excel\Exceptions\RowSkippedException;
+use Illuminate\Validation\ValidationException as IlluminateValidationException;
 
 class RowValidator
 {
@@ -29,7 +27,6 @@ class RowValidator
      * @param WithValidation $import
      *
      * @throws ValidationException
-     * @throws RowSkippedException
      */
     public function validate(array $rows, WithValidation $import)
     {
@@ -49,20 +46,18 @@ class RowValidator
                 $failures[] = new Failure(
                     $row,
                     $attributeName,
-                    str_replace($attribute, $attributeName, $messages),
-                    $rows[$row]
+                    str_replace($attribute, $attributeName, $messages)
                 );
             }
 
             if ($import instanceof SkipsOnFailure) {
                 $import->onFailure(...$failures);
-                throw new RowSkippedException(...$failures);
+            } else {
+                throw new ValidationException(
+                    $e,
+                    $failures
+                );
             }
-
-            throw new ValidationException(
-                $e,
-                $failures
-            );
         }
     }
 
@@ -108,37 +103,9 @@ class RowValidator
     private function formatKey(array $elements): array
     {
         return collect($elements)->mapWithKeys(function ($rule, $attribute) {
-            $attribute = Str::startsWith($attribute, '*.') ? $attribute : '*.' . $attribute;
+            $attribute = starts_with($attribute, '*.') ? $attribute : '*.' . $attribute;
 
-            return [$attribute => $this->formatRule($rule)];
+            return [$attribute => $rule];
         })->all();
-    }
-
-    /**
-     * @param string|object|callable|array $rules
-     *
-     * @return string|array
-     */
-    private function formatRule($rules)
-    {
-        if (is_array($rules)) {
-            foreach ($rules as $rule) {
-                $formatted[] = $this->formatRule($rule);
-            }
-
-            return $formatted ?? [];
-        }
-
-        if (is_object($rules) || is_callable($rules)) {
-            return $rules;
-        }
-
-        if (Str::contains($rules, 'required_if') && preg_match('/(.*):(.*),(.*)/', $rules, $matches)) {
-            $column = Str::startsWith($matches[2], '*.') ? $matches[2] : '*.' . $matches[2];
-
-            return $matches[1] . ':' . $column . ',' . $matches[3];
-        }
-
-        return $rules;
     }
 }

@@ -3,9 +3,9 @@
 namespace Maatwebsite\Excel\Tests\Data\Stubs;
 
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Assert;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Contracts\Queue\ShouldQueue;
 
 class AfterQueueImportJob implements ShouldQueue
 {

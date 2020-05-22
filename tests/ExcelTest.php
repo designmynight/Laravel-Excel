@@ -2,23 +2,23 @@
 
 namespace Maatwebsite\Excel\Tests;
 
-use Illuminate\Contracts\View\View;
+use Maatwebsite\Excel\Excel;
+use PHPUnit\Framework\Assert;
+use Maatwebsite\Excel\Importer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Collection;
-use Maatwebsite\Excel\Concerns\Exportable;
-use Maatwebsite\Excel\Concerns\FromCollection;
-use Maatwebsite\Excel\Concerns\FromView;
-use Maatwebsite\Excel\Concerns\Importable;
-use Maatwebsite\Excel\Concerns\RegistersEventListeners;
+use Illuminate\Contracts\View\View;
 use Maatwebsite\Excel\Concerns\ToArray;
-use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
+use Maatwebsite\Excel\Concerns\FromView;
+use Maatwebsite\Excel\Concerns\Exportable;
+use Maatwebsite\Excel\Concerns\Importable;
 use Maatwebsite\Excel\Concerns\WithEvents;
-use Maatwebsite\Excel\Excel;
+use Maatwebsite\Excel\Events\BeforeWriting;
+use Maatwebsite\Excel\Concerns\FromCollection;
 use Maatwebsite\Excel\Facades\Excel as ExcelFacade;
-use Maatwebsite\Excel\Importer;
 use Maatwebsite\Excel\Tests\Data\Stubs\EmptyExport;
-use Maatwebsite\Excel\Tests\Helpers\FileHelper;
-use PHPUnit\Framework\Assert;
+use Maatwebsite\Excel\Concerns\WithCustomCsvSettings;
+use Maatwebsite\Excel\Concerns\RegistersEventListeners;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class ExcelTest extends TestCase
@@ -28,7 +28,7 @@ class ExcelTest extends TestCase
      */
     protected $SUT;
 
-    protected function setUp(): void
+    public function setUp()
     {
         parent::setUp();
 
@@ -67,17 +67,11 @@ class ExcelTest extends TestCase
     public function can_store_an_export_object_on_default_disk()
     {
         $export = new EmptyExport;
-        $name   = 'filename.xlsx';
-        $path   = FileHelper::absolutePath($name, 'local');
 
-        @unlink($path);
-
-        $this->assertFileNotExists($path);
-
-        $response = $this->SUT->store($export, $name);
+        $response = $this->SUT->store($export, 'filename.xlsx');
 
         $this->assertTrue($response);
-        $this->assertFileExists($path);
+        $this->assertFileExists(__DIR__ . '/Data/Disks/Local/filename.xlsx');
     }
 
     /**
@@ -86,17 +80,11 @@ class ExcelTest extends TestCase
     public function can_store_an_export_object_on_another_disk()
     {
         $export = new EmptyExport;
-        $name   = 'filename.xlsx';
-        $path   = FileHelper::absolutePath($name, 'test');
 
-        @unlink($path);
-
-        $this->assertFileNotExists($path);
-
-        $response = $this->SUT->store($export, $name, 'test');
+        $response = $this->SUT->store($export, 'filename.xlsx', 'test');
 
         $this->assertTrue($response);
-        $this->assertFileExists($path);
+        $this->assertFileExists(__DIR__ . '/Data/Disks/Test/filename.xlsx');
     }
 
     /**
@@ -105,29 +93,11 @@ class ExcelTest extends TestCase
     public function can_store_csv_export_with_default_settings()
     {
         $export = new EmptyExport;
-        $name   = 'filename.csv';
-        $path   = FileHelper::absolutePath($name, 'local');
 
-        @unlink($path);
-
-        $this->assertFileNotExists($path);
-
-        $response = $this->SUT->store($export, $name);
+        $response = $this->SUT->store($export, 'filename.csv');
 
         $this->assertTrue($response);
-        $this->assertFileExists($path);
-    }
-
-    /**
-     * @test
-     */
-    public function can_get_raw_export_contents()
-    {
-        $export = new EmptyExport;
-
-        $response = $this->SUT->raw($export, Excel::XLSX);
-
-        $this->assertNotEmpty($response);
+        $this->assertFileExists(__DIR__ . '/Data/Disks/Local/filename.csv');
     }
 
     /**
@@ -136,17 +106,11 @@ class ExcelTest extends TestCase
     public function can_store_tsv_export_with_default_settings()
     {
         $export = new EmptyExport;
-        $name   = 'filename.tsv';
-        $path   = FileHelper::absolutePath($name, 'local');
 
-        @unlink($path);
-
-        $this->assertFileNotExists($path);
-
-        $response = $this->SUT->store($export, $name);
+        $response = $this->SUT->store($export, 'filename.tsv');
 
         $this->assertTrue($response);
-        $this->assertFileExists($path);
+        $this->assertFileExists(__DIR__ . '/Data/Disks/Local/filename.tsv');
     }
 
     /**
@@ -154,7 +118,7 @@ class ExcelTest extends TestCase
      */
     public function can_store_csv_export_with_custom_settings()
     {
-        $export = new class implements WithEvents, FromCollection, WithCustomCsvSettings {
+        $export = new class implements WithEvents, FromCollection {
             use RegistersEventListeners;
 
             /**
@@ -169,17 +133,15 @@ class ExcelTest extends TestCase
             }
 
             /**
-             * @return array
+             * @param BeforeWriting $event
              */
-            public function getCsvSettings(): array
+            public static function beforeWriting(BeforeWriting $event)
             {
-                return [
-                    'line_ending'            => PHP_EOL,
-                    'enclosure'              => '',
-                    'delimiter'              => ';',
-                    'include_separator_line' => true,
-                    'excel_compatibility'    => false,
-                ];
+                $event->writer->setLineEnding(PHP_EOL);
+                $event->writer->setEnclosure('');
+                $event->writer->setDelimiter(';');
+                $event->writer->setIncludeSeparatorLine(true);
+                $event->writer->setExcelCompatibility(false);
             }
         };
 
@@ -187,19 +149,18 @@ class ExcelTest extends TestCase
 
         $contents = file_get_contents(__DIR__ . '/Data/Disks/Local/filename.csv');
 
-        $this->assertStringContains('sep=;', $contents);
-        $this->assertStringContains('A1;B1', $contents);
-        $this->assertStringContains('A2;B2', $contents);
+        $this->assertContains('sep=;', $contents);
+        $this->assertContains('A1;B1', $contents);
+        $this->assertContains('A2;B2', $contents);
     }
 
     /**
      * @test
+     * @expectedException \Maatwebsite\Excel\Exceptions\ConcernConflictException
+     * @expectedExceptionMessage Cannot use FromQuery, FromArray or FromCollection and FromView on the same sheet
      */
     public function cannot_use_from_collection_and_from_view_on_same_export()
     {
-        $this->expectException(\Maatwebsite\Excel\Exceptions\ConcernConflictException::class);
-        $this->expectExceptionMessage('Cannot use FromQuery, FromArray or FromCollection and FromView on the same sheet');
-
         $export = new class implements FromCollection, FromView {
             use Exportable;
 
@@ -381,32 +342,10 @@ class ExcelTest extends TestCase
 
     /**
      * @test
+     * @expectedException \Maatwebsite\Excel\Exceptions\NoTypeDetectedException
      */
-    public function can_import_a_simple_xlsx_file_from_real_path()
+    public function import_will_throw_error_when_no_reader_type_could_be_detected()
     {
-        $import = new class implements ToArray {
-            /**
-             * @param array $array
-             */
-            public function array(array $array)
-            {
-                Assert::assertEquals([
-                    ['test', 'test'],
-                    ['test', 'test'],
-                ], $array);
-            }
-        };
-
-        $this->SUT->import($import, __DIR__ . '/Data/Disks/Local/import.xlsx');
-    }
-
-    /**
-     * @test
-     */
-    public function import_will_throw_error_when_no_reader_type_could_be_detected_when_no_extension()
-    {
-        $this->expectException(\Maatwebsite\Excel\Exceptions\NoTypeDetectedException::class);
-
         $import = new class implements ToArray {
             /**
              * @param array $array
@@ -421,26 +360,6 @@ class ExcelTest extends TestCase
         };
 
         $this->SUT->import($import, UploadedFile::fake()->create('import'));
-    }
-
-    /**
-     * @test
-     */
-    public function import_will_throw_error_when_no_reader_type_could_be_detected_with_unknown_extension()
-    {
-        $this->expectException(\Maatwebsite\Excel\Exceptions\NoTypeDetectedException::class);
-
-        $import = new class implements ToArray {
-            /**
-             * @param array $array
-             */
-            public function array(array $array)
-            {
-                //
-            }
-        };
-
-        $this->SUT->import($import, 'unknown-reader-type.zip');
     }
 
     /**

@@ -2,12 +2,10 @@
 
 namespace Maatwebsite\Excel\Tests;
 
+use Maatwebsite\Excel\Tests\Data\Stubs\QueuedExport;
+use Maatwebsite\Excel\Tests\Data\Stubs\ShouldQueueExport;
 use Maatwebsite\Excel\Tests\Data\Stubs\AfterQueueExportJob;
 use Maatwebsite\Excel\Tests\Data\Stubs\EloquentCollectionWithMappingExport;
-use Maatwebsite\Excel\Tests\Data\Stubs\QueuedExport;
-use Maatwebsite\Excel\Tests\Data\Stubs\QueuedExportWithFailedHook;
-use Maatwebsite\Excel\Tests\Data\Stubs\ShouldQueueExport;
-use Throwable;
 
 class QueuedExportTest extends TestCase
 {
@@ -63,19 +61,5 @@ class QueuedExportTest extends TestCase
         $this->assertEquals([
             ['Patrick', 'Brouwers'],
         ], $actual);
-    }
-
-    /**
-     * @test
-     */
-    public function can_catch_failures()
-    {
-        $export = new QueuedExportWithFailedHook();
-        try {
-            $export->queue('queued-export.xlsx');
-        } catch (Throwable $e) {
-        }
-
-        $this->assertTrue(app('queue-has-failed'));
     }
 }
